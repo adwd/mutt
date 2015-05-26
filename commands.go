@@ -14,21 +14,10 @@ import (
 
 	"bytes"
 	"github.com/bitly/go-simplejson"
+	"github.com/k0kubun/pp"
 	"io"
 	"strings"
 )
-
-const (
-	ReqURL = "http://localhost:9000/"
-)
-
-type Tweet struct {
-	TweetId          int    `json:"tweetId"`
-	Text             string `json:"text"`
-	MemberId         string `json:"memberId"`
-	TimestampCreated int    `json:"timestampCreated"`
-	TimestampUpdated int    `json:"timestampUpdated"`
-}
 
 var Commands = []cli.Command{
 	commandLogin,
@@ -99,12 +88,24 @@ func assert(err error) {
 	}
 }
 
+const (
+	ReqURL = "http://localhost:9000/"
+)
+
+type Tweet struct {
+	TweetID          int    `json:"tweetId"`
+	Text             string `json:"text"`
+	MemberID         string `json:"memberId"`
+	TimestampCreated int    `json:"timestampCreated"`
+	TimestampUpdated int    `json:"timestampUpdated"`
+}
+
 /**
 POST /authenticate
 */
 func doLogin(c *cli.Context) {
 	url := ReqURL + "api/authenticate"
-	fmt.Println("URL:>", url)
+	pp.Println("URL:>", url)
 
 	jsonStr := []byte(`{"name": "asd", "password": "asd"}`)
 
@@ -116,15 +117,13 @@ func doLogin(c *cli.Context) {
 		panic(err)
 	}
 
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
+	pp.Println("response Status:", resp.Status)
+	pp.Println("response Headers:", resp.Header)
 
 	if strings.Contains(resp.Status, "400") {
 		body, _ := ioutil.ReadAll(resp.Body)
-		fmt.Println("response Body:", string(body))
+		pp.Println("response Body:", string(body))
 	} else {
-		fmt.Println("Set-Cookie:", resp.Header["Set-Cookie"])
-
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
 		os.Mkdir("mutterTemp", 0777)
 		file := "mutterTemp/sessionID"
@@ -148,20 +147,9 @@ func doTweet(c *cli.Context) {
 GET /
 */
 func doShow(c *cli.Context) {
-	file := "mutterTemp/sessionID"
-	fl, err := os.Open(file)
-	if err != nil {
-		fmt.Println(file, err)
-		return
-	}
-
-	defer fl.Close()
-
-	buf := bytes.NewBuffer(nil)
-	io.Copy(buf, fl)
-
+	sessionID, _ := sessionID()
 	req, err := http.NewRequest("GET", ReqURL+"api/tweets"+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", string(buf.Bytes()))
+	req.Header.Set("Cookie", sessionID)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -177,6 +165,20 @@ func doRecommends(c *cli.Context) {
 }
 
 func doFollow(c *cli.Context) {
+	following := c.Args().First()
+	sessionID, _ := sessionID()
+	req, err := http.NewRequest("POST", ReqURL+"api/follow/"+following+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("response Body:", string(body))
+	defer resp.Body.Close()
 }
 
 // GET /api/recents
@@ -188,6 +190,20 @@ func doRecents(c *cli.Context) {
 
 	displayTweets(resp)
 	defer resp.Body.Close()
+}
+
+func sessionID() (sID string, err error) {
+	file := "mutterTemp/sessionID"
+	fl, err := os.Open(file)
+
+	if err == nil {
+		buf := bytes.NewBuffer(nil)
+		io.Copy(buf, fl)
+		sID = string(buf.Bytes())
+	}
+
+	fl.Close()
+	return sID, err
 }
 
 func displayTweets(resp *http.Response) {
@@ -203,8 +219,8 @@ func displayTweets(resp *http.Response) {
 		return
 	}
 
-	for i, v := range js.MustArray() {
+	for _, v := range js.MustArray() {
 		tw := v.(map[string]interface{})
-		fmt.Println("%d, %s, %s", i, tw["memberId"], tw["text"])
+		fmt.Println(tw["memberId"], tw["text"])
 	}
 }

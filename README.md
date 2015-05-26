@@ -1,6 +1,8 @@
-# mutter
+# mutter-cli
 
 ## Description
+
+command line client for mutter
 
 ## Usage
 
