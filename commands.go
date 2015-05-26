@@ -13,14 +13,15 @@ import (
 	"net/url"
 
 	"bytes"
+	"encoding/json"
 	"github.com/bitly/go-simplejson"
 	"github.com/k0kubun/pp"
-	"io"
 	"strings"
 )
 
 var Commands = []cli.Command{
 	commandLogin,
+	commandLogout,
 	commandTweet,
 	commandShow,
 	commandRecommends,
@@ -34,6 +35,14 @@ var commandLogin = cli.Command{
 	Description: `
 `,
 	Action: doLogin,
+}
+
+var commandLogout = cli.Command{
+	Name:  "logout",
+	Usage: "",
+	Description: `
+`,
+	Action: doLogout,
 }
 
 var commandTweet = cli.Command{
@@ -100,6 +109,34 @@ type Tweet struct {
 	TimestampUpdated int    `json:"timestampUpdated"`
 }
 
+type Config struct {
+	URL       string
+	SessionID string
+}
+
+func saveConfig(conf *Config) (err error) {
+	os.Mkdir("mutterTemp", 0777)
+	file := "mutterTemp/sessionID"
+
+	b, err := json.Marshal(conf)
+	if err == nil {
+		err = ioutil.WriteFile(file, b, 0644)
+	}
+
+	return err
+}
+
+func loadConfig() (conf Config, err error) {
+	filename := "mutterTemp/sessionID"
+	file, err := ioutil.ReadFile(filename)
+
+	if err == nil {
+		err = json.Unmarshal(file, &conf)
+	}
+
+	return conf, err
+}
+
 /**
 POST /authenticate
 */
@@ -125,18 +162,32 @@ func doLogin(c *cli.Context) {
 		pp.Println("response Body:", string(body))
 	} else {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
-		os.Mkdir("mutterTemp", 0777)
-		file := "mutterTemp/sessionID"
-		fout, err := os.Create(file)
+		var conf = &Config{URL: "", SessionID: sessionID}
+		err := saveConfig(conf)
 		if err != nil {
-			fmt.Println(file, err)
+			fmt.Println(err)
 			return
 		}
-
-		defer fout.Close()
-		fout.WriteString(sessionID)
 	}
 
+	defer resp.Body.Close()
+}
+
+func doLogout(c *cli.Context) {
+	sessionID, _ := sessionID()
+	req, err := http.NewRequest("POST", ReqURL+"api/logout"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	json, _ := simplejson.NewJson(body)
+	pp.Println("response Body:", json)
 	defer resp.Body.Close()
 }
 
@@ -193,17 +244,8 @@ func doRecents(c *cli.Context) {
 }
 
 func sessionID() (sID string, err error) {
-	file := "mutterTemp/sessionID"
-	fl, err := os.Open(file)
-
-	if err == nil {
-		buf := bytes.NewBuffer(nil)
-		io.Copy(buf, fl)
-		sID = string(buf.Bytes())
-	}
-
-	fl.Close()
-	return sID, err
+	conf, err := loadConfig()
+	return conf.SessionID, err
 }
 
 func displayTweets(resp *http.Response) {
