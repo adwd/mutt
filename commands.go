@@ -9,10 +9,13 @@ import (
 
 	"io/ioutil"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 
 	"bytes"
 	"github.com/bitly/go-simplejson"
+	"io"
+	"strings"
 )
 
 const (
@@ -103,67 +106,71 @@ func doLogin(c *cli.Context) {
 	url := ReqURL + "api/authenticate"
 	fmt.Println("URL:>", url)
 
-	jsonString := `{"name": "qwe", "password": "qwe"}`
-
-	var jsonStr = []byte(jsonString)
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonStr))
-	//req.Header.Set("X-Custom-Header", "myvalue")
-	req.Header.Set("Content-Type", "application/json")
+	jsonStr := []byte(`{"name": "asd", "password": "asd"}`)
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	jar, _ := cookiejar.New(nil)
+	client.Jar = jar
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonStr))
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
 
 	fmt.Println("response Status:", resp.Status)
 	fmt.Println("response Headers:", resp.Header)
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
+
+	if strings.Contains(resp.Status, "400") {
+		body, _ := ioutil.ReadAll(resp.Body)
+		fmt.Println("response Body:", string(body))
+	} else {
+		fmt.Println("Set-Cookie:", resp.Header["Set-Cookie"])
+
+		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
+		os.Mkdir("mutterTemp", 0777)
+		file := "mutterTemp/sessionID"
+		fout, err := os.Create(file)
+		if err != nil {
+			fmt.Println(file, err)
+			return
+		}
+
+		defer fout.Close()
+		fout.WriteString(sessionID)
+	}
+
+	defer resp.Body.Close()
 }
 
 func doTweet(c *cli.Context) {
 }
 
 /**
-GET /recents
+GET /
 */
 func doShow(c *cli.Context) {
-
-	values := url.Values{}
-
-	getSimple(values)
-
-	fmt.Println("hello")
-}
-
-func getSimple(values url.Values) {
-	resp, err := http.Get(ReqURL + "api/recents" + values.Encode())
+	file := "mutterTemp/sessionID"
+	fl, err := os.Open(file)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println(file, err)
 		return
 	}
 
-	defer resp.Body.Close()
+	defer fl.Close()
 
-	execute(resp)
-}
+	buf := bytes.NewBuffer(nil)
+	io.Copy(buf, fl)
 
-func execute(resp *http.Response) {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err == nil {
+	req, err := http.NewRequest("GET", ReqURL+"api/tweets"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", string(buf.Bytes()))
 
-		js, err2 := simplejson.NewJson(b)
-		if err2 == nil {
-
-			for i, v := range js.MustArray() {
-				tw := v.(map[string]interface{})
-				fmt.Println("%d, %s, %s\n", i, tw["memberId"], tw["text"])
-			}
-		}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
 	}
+
+	displayTweets(resp)
+	defer resp.Body.Close()
 }
 
 func doRecommends(c *cli.Context) {
@@ -172,5 +179,32 @@ func doRecommends(c *cli.Context) {
 func doFollow(c *cli.Context) {
 }
 
+// GET /api/recents
 func doRecents(c *cli.Context) {
+	resp, err := http.Get(ReqURL + "api/recents" + url.Values{}.Encode())
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	displayTweets(resp)
+	defer resp.Body.Close()
+}
+
+func displayTweets(resp *http.Response) {
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	js, err := simplejson.NewJson(b)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for i, v := range js.MustArray() {
+		tw := v.(map[string]interface{})
+		fmt.Println("%d, %s, %s", i, tw["memberId"], tw["text"])
+	}
 }
