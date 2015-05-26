@@ -192,6 +192,32 @@ func doLogout(c *cli.Context) {
 }
 
 func doTweet(c *cli.Context) {
+	text := c.Args().First()
+	js := simplejson.New()
+	js.Set("text", text)
+	jsbin, _ := js.MarshalJSON()
+
+	sessionID, _ := sessionID()
+	req, err := http.NewRequest("POST", ReqURL+"api/tweet"+url.Values{}.Encode(), bytes.NewReader(jsbin))
+	req.Header.Set("Cookie", sessionID)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if strings.Contains(resp.Status, "400") {
+		body, _ := ioutil.ReadAll(resp.Body)
+		js, _ := simplejson.NewJson(body)
+		pp.Println("response Body:", js)
+		return
+	}
+
+	displayTweets(resp)
+	defer resp.Body.Close()
 }
 
 /**
