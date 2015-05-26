@@ -23,6 +23,7 @@ import (
 var Commands = []cli.Command{
 	commandLogin,
 	commandLogout,
+	commandRegister,
 	commandTweet,
 	commandShow,
 	commandRecommends,
@@ -44,6 +45,14 @@ var commandLogout = cli.Command{
 	Description: `
 `,
 	Action: doLogout,
+}
+
+var commandRegister = cli.Command{
+	Name:  "register",
+	Usage: "",
+	Description: `
+`,
+	Action: doRegister,
 }
 
 var commandTweet = cli.Command{
@@ -211,6 +220,66 @@ func doLogout(c *cli.Context) {
 	body, _ := ioutil.ReadAll(resp.Body)
 	json, _ := simplejson.NewJson(body)
 	pp.Println("response Body:", json)
+	defer resp.Body.Close()
+}
+
+func doRegister(c *cli.Context) {
+	reader := bufio.NewReader(os.Stdin)
+
+	// URL
+	conf, _ := loadConfig()
+	if conf.SessionID == "" {
+		fmt.Print("URL: ")
+		text, _ := reader.ReadString('\n')
+		text = strings.Trim(text, "\n")
+		if strings.HasSuffix(text, "/") {
+			conf.URL = text
+		} else {
+			conf.URL = text + "/"
+		}
+	}
+
+	// name, password
+	fmt.Print("username: ")
+	name, _ := reader.ReadString('\n')
+	fmt.Print("password: ")
+	pass, _ := reader.ReadString('\n')
+	fmt.Print("mail address: ")
+	mail, _ := reader.ReadString('\n')
+
+	js := simplejson.New()
+	js.Set("name", strings.Trim(name, "\n"))
+	js.Set("password", strings.Trim(pass, "\n"))
+	js.Set("mail", strings.Trim(mail, "\n"))
+	jsbin, _ := js.MarshalJSON()
+
+	// send request
+	client := &http.Client{}
+	jar, _ := cookiejar.New(nil)
+	client.Jar = jar
+	url := conf.URL + "api/create"
+	resp, err := client.Post(url, "application/json", bytes.NewReader(jsbin))
+	if err != nil {
+		panic(err)
+	}
+
+	// show response
+	pp.Println("response Status:", resp.Status)
+	pp.Println("response Headers:", resp.Header)
+
+	if strings.Contains(resp.Status, "400") {
+		body, _ := ioutil.ReadAll(resp.Body)
+		pp.Println("response Body:", body)
+	} else {
+		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
+		conf.SessionID = sessionID
+		err := saveConfig(&conf)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}
+
 	defer resp.Body.Close()
 }
 
