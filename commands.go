@@ -144,7 +144,7 @@ func doLogin(c *cli.Context) {
 	url := ReqURL + "api/authenticate"
 	pp.Println("URL:>", url)
 
-	jsonStr := []byte(`{"name": "asd", "password": "asd"}`)
+	jsonStr := []byte(`{"name": "qwe", "password": "qwe"}`)
 
 	client := &http.Client{}
 	jar, _ := cookiejar.New(nil)
@@ -239,6 +239,24 @@ func doShow(c *cli.Context) {
 }
 
 func doRecommends(c *cli.Context) {
+	sessionID, _ := sessionID()
+	req, err := http.NewRequest("GET", ReqURL+"api/recommends"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", sessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	bodyjs, _ := simplejson.NewJson(body)
+	//pp.Println("response Body:", bodyjs)
+	for _, v := range bodyjs.MustArray() {
+		tw := v.(map[string]interface{})
+		fmt.Println(tw["memberId"], tw["mailAddress"])
+	}
+	defer resp.Body.Close()
 }
 
 func doFollow(c *cli.Context) {
