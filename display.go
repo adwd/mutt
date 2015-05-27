@@ -40,6 +40,8 @@ func DisplayString(code, message string) {
 }
 
 func DisplayTweets(resp *http.Response) {
+	fmt.Println(cyan, "tweets", reset)
+
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println(err)

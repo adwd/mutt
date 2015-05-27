@@ -18,17 +18,16 @@ func SaveConfig(conf *Config) (err error) {
 		err = ioutil.WriteFile(filename, b, 0644)
 	}
 
-	return err
+	return
 }
 
 func LoadConfig() (conf Config, err error) {
 	file, err := ioutil.ReadFile(filename)
-
 	if err == nil {
 		err = json.Unmarshal(file, &conf)
 	}
 
-	return conf, err
+	return
 }
 
 func ClearConfig() {

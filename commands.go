@@ -14,6 +14,7 @@ import (
 
 	"bufio"
 	"bytes"
+	"code.google.com/p/gopass"
 	"github.com/bitly/go-simplejson"
 	"strings"
 )
@@ -146,7 +147,7 @@ func doLogin(c *cli.Context) {
 	fmt.Print("username: ")
 	name, _ := reader.ReadString('\n')
 	fmt.Print("password: ")
-	pass, _ := reader.ReadString('\n')
+	pass, _ := gopass.GetPass("")
 
 	js := simplejson.New()
 	js.Set("name", strings.Trim(name, "\n"))
@@ -175,9 +176,8 @@ func doLogin(c *cli.Context) {
 }
 
 func doLogout(c *cli.Context) {
-	conf, _ := LoadConfig()
-	req, err := http.NewRequest("POST", conf.URL+"api/logout"+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", conf.SessionID)
+	req, err := http.NewRequest("POST", Conf.URL+"api/logout"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", Conf.SessionID)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -194,16 +194,14 @@ func doLogout(c *cli.Context) {
 func doRegister(c *cli.Context) {
 	reader := bufio.NewReader(os.Stdin)
 
-	// URL
-	conf, _ := LoadConfig()
-	if conf.SessionID == "" {
+	if Conf.SessionID == "" {
 		fmt.Print("URL: ")
 		text, _ := reader.ReadString('\n')
 		text = strings.Trim(text, "\n")
 		if strings.HasSuffix(text, "/") {
-			conf.URL = text
+			Conf.URL = text
 		} else {
-			conf.URL = text + "/"
+			Conf.URL = text + "/"
 		}
 	}
 
@@ -211,7 +209,7 @@ func doRegister(c *cli.Context) {
 	fmt.Print("username: ")
 	name, _ := reader.ReadString('\n')
 	fmt.Print("password: ")
-	pass, _ := reader.ReadString('\n')
+	pass, _ := gopass.GetPass("")
 	fmt.Print("mail address: ")
 	mail, _ := reader.ReadString('\n')
 
@@ -225,7 +223,7 @@ func doRegister(c *cli.Context) {
 	client := &http.Client{}
 	jar, _ := cookiejar.New(nil)
 	client.Jar = jar
-	url := conf.URL + "api/create"
+	url := Conf.URL + "api/create"
 	resp, err := client.Post(url, "application/json", bytes.NewReader(jsbin))
 	if err != nil {
 		panic(err)
@@ -233,8 +231,8 @@ func doRegister(c *cli.Context) {
 
 	if resp.StatusCode == http.StatusOK {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
-		conf.SessionID = sessionID
-		err := SaveConfig(&conf)
+		Conf.SessionID = sessionID
+		err := SaveConfig(&Conf)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -252,9 +250,8 @@ func doTweet(c *cli.Context) {
 	js.Set("text", text)
 	jsbin, _ := js.MarshalJSON()
 
-	conf, _ := LoadConfig()
-	req, err := http.NewRequest("POST", conf.URL+"api/tweet"+url.Values{}.Encode(), bytes.NewReader(jsbin))
-	req.Header.Set("Cookie", conf.SessionID)
+	req, err := http.NewRequest("POST", Conf.URL+"api/tweet"+url.Values{}.Encode(), bytes.NewReader(jsbin))
+	req.Header.Set("Cookie", Conf.SessionID)
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -272,9 +269,8 @@ func doTweet(c *cli.Context) {
 GET /
 */
 func doShow(c *cli.Context) {
-	conf, _ := LoadConfig()
-	req, err := http.NewRequest("GET", conf.URL+"api/tweets"+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", conf.SessionID)
+	req, err := http.NewRequest("GET", Conf.URL+"api/tweets"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", Conf.SessionID)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -282,14 +278,18 @@ func doShow(c *cli.Context) {
 		fmt.Println(err)
 	}
 
+	if resp.StatusCode == http.StatusBadRequest {
+		DisplayResponse(resp)
+		return
+	}
+
 	DisplayTweets(resp)
 	defer resp.Body.Close()
 }
 
 func doRecommends(c *cli.Context) {
-	conf, _ := LoadConfig()
-	req, err := http.NewRequest("GET", conf.URL+"api/recommends"+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", conf.SessionID)
+	req, err := http.NewRequest("GET", Conf.URL+"api/recommends"+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", Conf.SessionID)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -309,9 +309,8 @@ func doRecommends(c *cli.Context) {
 
 func doFollow(c *cli.Context) {
 	following := c.Args().First()
-	conf, _ := LoadConfig()
-	req, err := http.NewRequest("POST", conf.URL+"api/follow/"+following+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", conf.SessionID)
+	req, err := http.NewRequest("POST", Conf.URL+"api/follow/"+following+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", Conf.SessionID)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -326,8 +325,7 @@ func doFollow(c *cli.Context) {
 
 // GET /api/recents
 func doRecents(c *cli.Context) {
-	conf, _ := LoadConfig()
-	resp, err := http.Get(conf.URL + "api/recents" + url.Values{}.Encode())
+	resp, err := http.Get(Conf.URL + "api/recents" + url.Values{}.Encode())
 	if err != nil {
 		fmt.Println(err)
 	}
