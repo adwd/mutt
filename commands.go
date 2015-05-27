@@ -14,7 +14,6 @@ import (
 
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"github.com/bitly/go-simplejson"
 	"github.com/k0kubun/pp"
 	"strings"
@@ -29,19 +28,20 @@ var Commands = []cli.Command{
 	commandRecommends,
 	commandFollow,
 	commandRecents,
+	commandClear,
 }
 
 var commandLogin = cli.Command{
 	Name:  "login",
-	Usage: "",
-	Description: `
+	Usage: "Logins to mutter.",
+	Description: `mutter creates config file(.mutterrc) to record URL of mutter and sessionID.
 `,
 	Action: doLogin,
 }
 
 var commandLogout = cli.Command{
 	Name:  "logout",
-	Usage: "",
+	Usage: "Logouts from mutter.",
 	Description: `
 `,
 	Action: doLogout,
@@ -49,7 +49,7 @@ var commandLogout = cli.Command{
 
 var commandRegister = cli.Command{
 	Name:  "register",
-	Usage: "",
+	Usage: "Creates a user account.",
 	Description: `
 `,
 	Action: doRegister,
@@ -57,15 +57,15 @@ var commandRegister = cli.Command{
 
 var commandTweet = cli.Command{
 	Name:  "tweet",
-	Usage: "",
-	Description: `
+	Usage: "Posts a tweet.",
+	Description: `mutter tweet "hello mutter"
 `,
 	Action: doTweet,
 }
 
 var commandShow = cli.Command{
 	Name:  "show",
-	Usage: "",
+	Usage: "Shows tweets by your following-users and you.",
 	Description: `
 `,
 	Action: doShow,
@@ -73,7 +73,7 @@ var commandShow = cli.Command{
 
 var commandRecommends = cli.Command{
 	Name:  "recommends",
-	Usage: "",
+	Usage: "Shows a list of users you don't follow.",
 	Description: `
 `,
 	Action: doRecommends,
@@ -81,18 +81,26 @@ var commandRecommends = cli.Command{
 
 var commandFollow = cli.Command{
 	Name:  "follow",
-	Usage: "",
-	Description: `
+	Usage: "Follows a user.",
+	Description: `mutter follow "someone"
 `,
 	Action: doFollow,
 }
 
 var commandRecents = cli.Command{
 	Name:  "recents",
-	Usage: "",
+	Usage: "Shows recent tweets by all users.",
 	Description: `
 `,
 	Action: doRecents,
+}
+
+var commandClear = cli.Command{
+	Name:  "clear",
+	Usage: "Cleans mutter config file. (.mutterrc)",
+	Description: `Cleans mutter config file. (.mutterrc)
+`,
+	Action: doClear,
 }
 
 func debug(v ...interface{}) {
@@ -115,34 +123,6 @@ type Tweet struct {
 	TimestampUpdated int    `json:"timestampUpdated"`
 }
 
-type Config struct {
-	URL       string
-	SessionID string
-}
-
-func saveConfig(conf *Config) (err error) {
-	os.Mkdir("mutterTemp", 0777)
-	file := "mutterTemp/sessionID"
-
-	b, err := json.Marshal(conf)
-	if err == nil {
-		err = ioutil.WriteFile(file, b, 0644)
-	}
-
-	return err
-}
-
-func loadConfig() (conf Config, err error) {
-	filename := "mutterTemp/sessionID"
-	file, err := ioutil.ReadFile(filename)
-
-	if err == nil {
-		err = json.Unmarshal(file, &conf)
-	}
-
-	return conf, err
-}
-
 /**
 POST /authenticate
 */
@@ -150,19 +130,18 @@ func doLogin(c *cli.Context) {
 	reader := bufio.NewReader(os.Stdin)
 
 	// URL
-	conf, _ := loadConfig()
-	if conf.SessionID == "" {
+	if Conf.SessionID == "" {
 		fmt.Print("URL: ")
 		text, _ := reader.ReadString('\n')
 		text = strings.Trim(text, "\n")
 		if strings.HasSuffix(text, "/") {
-			conf.URL = text
+			Conf.URL = text
 		} else {
-			conf.URL = text + "/"
+			Conf.URL = text + "/"
 		}
 	}
 
-	url := conf.URL + "api/authenticate"
+	url := Conf.URL + "api/authenticate"
 	pp.Println("URL:>", url)
 
 	// name, password
@@ -194,19 +173,24 @@ func doLogin(c *cli.Context) {
 		pp.Println("response Body:", body)
 	} else {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
-		conf.SessionID = sessionID
-		err := saveConfig(&conf)
+		Conf.SessionID = sessionID
+		err := SaveConfig(&Conf)
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
+		body, _ := ioutil.ReadAll(resp.Body)
+		jsBody, _ := simplejson.NewJson(body)
+		pp.Println("response Body:", jsBody)
+
+		fmt.Println("login ")
 	}
 
 	defer resp.Body.Close()
 }
 
 func doLogout(c *cli.Context) {
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	req, err := http.NewRequest("POST", conf.URL+"api/logout"+url.Values{}.Encode(), nil)
 	req.Header.Set("Cookie", conf.SessionID)
 
@@ -227,7 +211,7 @@ func doRegister(c *cli.Context) {
 	reader := bufio.NewReader(os.Stdin)
 
 	// URL
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	if conf.SessionID == "" {
 		fmt.Print("URL: ")
 		text, _ := reader.ReadString('\n')
@@ -269,11 +253,12 @@ func doRegister(c *cli.Context) {
 
 	if strings.Contains(resp.Status, "400") {
 		body, _ := ioutil.ReadAll(resp.Body)
-		pp.Println("response Body:", body)
+		js, _ := simplejson.NewJson(body)
+		pp.Println("response Body:", js)
 	} else {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
 		conf.SessionID = sessionID
-		err := saveConfig(&conf)
+		err := SaveConfig(&conf)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -289,7 +274,7 @@ func doTweet(c *cli.Context) {
 	js.Set("text", text)
 	jsbin, _ := js.MarshalJSON()
 
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	req, err := http.NewRequest("POST", conf.URL+"api/tweet"+url.Values{}.Encode(), bytes.NewReader(jsbin))
 	req.Header.Set("Cookie", conf.SessionID)
 	req.Header.Set("Content-Type", "application/json")
@@ -316,7 +301,7 @@ func doTweet(c *cli.Context) {
 GET /
 */
 func doShow(c *cli.Context) {
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	req, err := http.NewRequest("GET", conf.URL+"api/tweets"+url.Values{}.Encode(), nil)
 	req.Header.Set("Cookie", conf.SessionID)
 
@@ -331,7 +316,7 @@ func doShow(c *cli.Context) {
 }
 
 func doRecommends(c *cli.Context) {
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	req, err := http.NewRequest("GET", conf.URL+"api/recommends"+url.Values{}.Encode(), nil)
 	req.Header.Set("Cookie", conf.SessionID)
 
@@ -353,7 +338,7 @@ func doRecommends(c *cli.Context) {
 
 func doFollow(c *cli.Context) {
 	following := c.Args().First()
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	req, err := http.NewRequest("POST", conf.URL+"api/follow/"+following+url.Values{}.Encode(), nil)
 	req.Header.Set("Cookie", conf.SessionID)
 
@@ -370,7 +355,7 @@ func doFollow(c *cli.Context) {
 
 // GET /api/recents
 func doRecents(c *cli.Context) {
-	conf, _ := loadConfig()
+	conf, _ := LoadConfig()
 	resp, err := http.Get(conf.URL + "api/recents" + url.Values{}.Encode())
 	if err != nil {
 		fmt.Println(err)
@@ -380,8 +365,12 @@ func doRecents(c *cli.Context) {
 	defer resp.Body.Close()
 }
 
+func doClear(c *cli.Context) {
+	ClearConfig()
+}
+
 func sessionID() (sID string, err error) {
-	conf, err := loadConfig()
+	conf, err := LoadConfig()
 	return conf.SessionID, err
 }
 
