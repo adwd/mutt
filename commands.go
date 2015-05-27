@@ -184,19 +184,7 @@ func doLogin(c *cli.Context) {
 }
 
 func doLogout(c *cli.Context) {
-	req, err := http.NewRequest("POST", Conf.URL+"api/logout"+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", Conf.SessionID)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-
-	DisplayResponse(resp)
-
+	simpleReqRes("POST", Conf.URL+"api/logout/")
 }
 
 func doRegister(c *cli.Context) {
@@ -316,33 +304,12 @@ func doRecommends(c *cli.Context) {
 
 func doFollow(c *cli.Context) {
 	following := c.Args().First()
-	req, err := http.NewRequest("POST", Conf.URL+"api/follow/"+following+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", Conf.SessionID)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resp.Body.Close()
-
-	DisplayResponse(resp)
-
+	simpleReqRes("POST", Conf.URL+"api/follow/"+following)
 }
 
 func doUnfollow(c *cli.Context) {
 	following := c.Args().First()
-	req, err := http.NewRequest("POST", Conf.URL+"api/unfollow/"+following+url.Values{}.Encode(), nil)
-	req.Header.Set("Cookie", Conf.SessionID)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resp.Body.Close()
-
-	DisplayResponse(resp)
+	simpleReqRes("POST", Conf.URL+"api/unfollow/"+following)
 }
 
 // GET /api/recents
@@ -358,4 +325,20 @@ func doRecents(c *cli.Context) {
 
 func doClear(c *cli.Context) {
 	ClearConfig()
+}
+
+// urlに中身のないリクエストを、指定したmethodで送り、
+// レスポンスのボディのtextを表示する
+func simpleReqRes(method, url string) {
+	req, err := http.NewRequest(method, url, nil)
+	req.Header.Set("Cookie", Conf.SessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resp.Body.Close()
+
+	DisplayResponse(resp)
 }
