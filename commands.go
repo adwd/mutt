@@ -27,6 +27,7 @@ var Commands = []cli.Command{
 	commandShow,
 	commandRecommends,
 	commandFollow,
+	commandUnfollow,
 	commandRecents,
 	commandClear,
 }
@@ -85,6 +86,14 @@ var commandFollow = cli.Command{
 	Description: `mutter follow "someone"
 `,
 	Action: doFollow,
+}
+
+var commandUnfollow = cli.Command{
+	Name:  "unfollow",
+	Usage: "Unfollows a user.",
+	Description: `mutter unfollow "someone"
+`,
+	Action: doUnfollow,
 }
 
 var commandRecents = cli.Command{
@@ -159,6 +168,7 @@ func doLogin(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
@@ -171,8 +181,6 @@ func doLogin(c *cli.Context) {
 	}
 
 	DisplayResponse(resp)
-
-	defer resp.Body.Close()
 }
 
 func doLogout(c *cli.Context) {
@@ -185,10 +193,10 @@ func doLogout(c *cli.Context) {
 		fmt.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 
 	DisplayResponse(resp)
 
-	defer resp.Body.Close()
 }
 
 func doRegister(c *cli.Context) {
@@ -228,6 +236,7 @@ func doRegister(c *cli.Context) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
@@ -240,8 +249,6 @@ func doRegister(c *cli.Context) {
 	}
 
 	DisplayResponse(resp)
-
-	defer resp.Body.Close()
 }
 
 func doTweet(c *cli.Context) {
@@ -260,9 +267,9 @@ func doTweet(c *cli.Context) {
 		fmt.Println(err)
 		return
 	}
+	defer resp.Body.Close()
 
 	DisplayTweets(resp)
-	defer resp.Body.Close()
 }
 
 /**
@@ -277,6 +284,7 @@ func doShow(c *cli.Context) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusBadRequest {
 		DisplayResponse(resp)
@@ -284,7 +292,6 @@ func doShow(c *cli.Context) {
 	}
 
 	DisplayTweets(resp)
-	defer resp.Body.Close()
 }
 
 func doRecommends(c *cli.Context) {
@@ -296,6 +303,7 @@ func doRecommends(c *cli.Context) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer resp.Body.Close()
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	bodyjs, _ := simplejson.NewJson(body)
@@ -304,7 +312,6 @@ func doRecommends(c *cli.Context) {
 		tw := v.(map[string]interface{})
 		fmt.Println(tw["memberId"], tw["mailAddress"])
 	}
-	defer resp.Body.Close()
 }
 
 func doFollow(c *cli.Context) {
@@ -317,10 +324,25 @@ func doFollow(c *cli.Context) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer resp.Body.Close()
 
 	DisplayResponse(resp)
 
+}
+
+func doUnfollow(c *cli.Context) {
+	following := c.Args().First()
+	req, err := http.NewRequest("POST", Conf.URL+"api/unfollow/"+following+url.Values{}.Encode(), nil)
+	req.Header.Set("Cookie", Conf.SessionID)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer resp.Body.Close()
+
+	DisplayResponse(resp)
 }
 
 // GET /api/recents
@@ -329,9 +351,9 @@ func doRecents(c *cli.Context) {
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer resp.Body.Close()
 
 	DisplayTweets(resp)
-	defer resp.Body.Close()
 }
 
 func doClear(c *cli.Context) {
