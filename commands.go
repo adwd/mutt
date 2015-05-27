@@ -15,7 +15,6 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/bitly/go-simplejson"
-	"github.com/k0kubun/pp"
 	"strings"
 )
 
@@ -141,8 +140,7 @@ func doLogin(c *cli.Context) {
 		}
 	}
 
-	url := Conf.URL + "api/authenticate"
-	pp.Println("URL:>", url)
+	DisplayString(cyan, "URL: "+Conf.URL)
 
 	// name, password
 	fmt.Print("username: ")
@@ -156,22 +154,12 @@ func doLogin(c *cli.Context) {
 	jsbin, _ := js.MarshalJSON()
 
 	// send request
-	client := &http.Client{}
-	jar, _ := cookiejar.New(nil)
-	client.Jar = jar
-	resp, err := client.Post(url, "application/json", bytes.NewReader(jsbin))
+	resp, err := http.Post(Conf.URL+"api/authenticate", "application/json", bytes.NewReader(jsbin))
 	if err != nil {
 		panic(err)
 	}
 
-	// show response
-	pp.Println("response Status:", resp.Status)
-	pp.Println("response Headers:", resp.Header)
-
-	if strings.Contains(resp.Status, "400") {
-		body, _ := ioutil.ReadAll(resp.Body)
-		pp.Println("response Body:", body)
-	} else {
+	if resp.StatusCode == http.StatusOK {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
 		Conf.SessionID = sessionID
 		err := SaveConfig(&Conf)
@@ -179,12 +167,9 @@ func doLogin(c *cli.Context) {
 			fmt.Println(err)
 			return
 		}
-		body, _ := ioutil.ReadAll(resp.Body)
-		jsBody, _ := simplejson.NewJson(body)
-		pp.Println("response Body:", jsBody)
-
-		fmt.Println("login ")
 	}
+
+	DisplayResponse(resp)
 
 	defer resp.Body.Close()
 }
@@ -201,9 +186,8 @@ func doLogout(c *cli.Context) {
 		return
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
-	json, _ := simplejson.NewJson(body)
-	pp.Println("response Body:", json)
+	DisplayResponse(resp)
+
 	defer resp.Body.Close()
 }
 
@@ -247,15 +231,7 @@ func doRegister(c *cli.Context) {
 		panic(err)
 	}
 
-	// show response
-	pp.Println("response Status:", resp.Status)
-	pp.Println("response Headers:", resp.Header)
-
-	if strings.Contains(resp.Status, "400") {
-		body, _ := ioutil.ReadAll(resp.Body)
-		js, _ := simplejson.NewJson(body)
-		pp.Println("response Body:", js)
-	} else {
+	if resp.StatusCode == http.StatusOK {
 		sessionID := strings.Split(resp.Header["Set-Cookie"][0], "; ")[0]
 		conf.SessionID = sessionID
 		err := SaveConfig(&conf)
@@ -264,6 +240,8 @@ func doRegister(c *cli.Context) {
 			return
 		}
 	}
+
+	DisplayResponse(resp)
 
 	defer resp.Body.Close()
 }
@@ -286,14 +264,7 @@ func doTweet(c *cli.Context) {
 		return
 	}
 
-	if strings.Contains(resp.Status, "400") {
-		body, _ := ioutil.ReadAll(resp.Body)
-		js, _ := simplejson.NewJson(body)
-		pp.Println("response Body:", js)
-		return
-	}
-
-	displayTweets(resp)
+	DisplayTweets(resp)
 	defer resp.Body.Close()
 }
 
@@ -311,7 +282,7 @@ func doShow(c *cli.Context) {
 		fmt.Println(err)
 	}
 
-	displayTweets(resp)
+	DisplayTweets(resp)
 	defer resp.Body.Close()
 }
 
@@ -328,7 +299,7 @@ func doRecommends(c *cli.Context) {
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	bodyjs, _ := simplejson.NewJson(body)
-	//pp.Println("response Body:", bodyjs)
+
 	for _, v := range bodyjs.MustArray() {
 		tw := v.(map[string]interface{})
 		fmt.Println(tw["memberId"], tw["mailAddress"])
@@ -348,8 +319,8 @@ func doFollow(c *cli.Context) {
 		fmt.Println(err)
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
+	DisplayResponse(resp)
+
 	defer resp.Body.Close()
 }
 
@@ -361,34 +332,10 @@ func doRecents(c *cli.Context) {
 		fmt.Println(err)
 	}
 
-	displayTweets(resp)
+	DisplayTweets(resp)
 	defer resp.Body.Close()
 }
 
 func doClear(c *cli.Context) {
 	ClearConfig()
-}
-
-func sessionID() (sID string, err error) {
-	conf, err := LoadConfig()
-	return conf.SessionID, err
-}
-
-func displayTweets(resp *http.Response) {
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	js, err := simplejson.NewJson(b)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	for _, v := range js.MustArray() {
-		tw := v.(map[string]interface{})
-		fmt.Println(tw["memberId"], tw["text"])
-	}
 }
