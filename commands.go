@@ -257,6 +257,11 @@ func doTweet(c *cli.Context) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		DisplayResponse(resp)
+		return
+	}
+
 	DisplayTweets(resp)
 }
 
