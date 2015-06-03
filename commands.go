@@ -303,7 +303,8 @@ func doRecommends(c *cli.Context) {
 
 	for _, v := range bodyjs.MustArray() {
 		tw := v.(map[string]interface{})
-		fmt.Println(tw["memberId"], tw["mailAddress"])
+		name, _ := tw["memberId"].(string)
+		fmt.Println(cyan, strings.Trim(name, " "), reset)
 	}
 }
 
