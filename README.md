@@ -1,4 +1,4 @@
-# mutter-cli
+# mutt
 
 ## Description
 
@@ -11,12 +11,12 @@ command line client for mutter
 To install, use `go get`:
 
 ```bash
-$ go get -d github.com/adwd/mutter
+$ go get -d github.com/adwd/mutt
 ```
 
 ## Contribution
 
-1. Fork ([https://github.com/adwd/mutter/fork](https://github.com/adwd/mutter/fork))
+1. Fork ([https://github.com/adwd/mutt/fork](https://github.com/adwd/mutt/fork))
 1. Create a feature branch
 1. Commit your changes
 1. Rebase your local changes against the master branch

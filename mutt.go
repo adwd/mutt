@@ -10,7 +10,7 @@ var Conf Config
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "mutter"
+	app.Name = "mutt"
 	app.Version = Version
 	app.Usage = ""
 	app.Author = "adwd"
