@@ -2,12 +2,16 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"io/ioutil"
 	"net/http"
 
 	"github.com/bitly/go-simplejson"
 	"github.com/mgutz/ansi"
+	"github.com/moznion/go-text-visual-width"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // cache escape codes and build strings
@@ -54,9 +58,49 @@ func DisplayTweets(resp *http.Response) {
 		return
 	}
 
+	// pretty print
+	w, _, err := terminal.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if w < 20 {
+		fmt.Println("terminal too narrow to show tweets")
+		return
+	}
+
+	// ツイートをひとつずつ表示する。
+	// その際、名前をツイートを左右に分けて表示する。
 	for _, v := range js.MustArray() {
 		tw := v.(map[string]interface{})
-		fmt.Print(lime, tw["memberId"], reset)
-		fmt.Println(yellow, tw["text"], reset)
+		name, _ := tw["memberId"].(string)
+		text, _ := tw["text"].(string)
+		texts := strings.Split(text, "\n")
+
+		for _, v := range texts {
+			prettyPrintTweet(name, v, w)
+			name = ""
+		}
+	}
+}
+
+func prettyPrintTweet(name, text string, width int) {
+	rows := visualwidth.Width(text)/(width-17) + 1
+	var textstr = text
+	var textprint string
+	var namestr = name
+	for i := 0; i < rows; i++ {
+		// make and print name string
+		blanks := 16 - visualwidth.Width(namestr)
+		fmt.Print(lime, namestr, reset)
+		for j := blanks; j > 0; j-- {
+			fmt.Print(reset, " ", reset)
+		}
+		namestr = ""
+
+		// trim and save next for tweeted text
+		textprint, textstr = visualwidth.Separate(textstr, width-18)
+		fmt.Println(yellow, textprint, reset)
 	}
 }
