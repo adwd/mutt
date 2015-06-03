@@ -184,7 +184,7 @@ func doLogin(c *cli.Context) {
 }
 
 func doLogout(c *cli.Context) {
-	simpleReqRes("POST", Conf.URL+"api/logout/")
+	simpleReqRes("POST", Conf.URL+"api/logout")
 }
 
 func doRegister(c *cli.Context) {

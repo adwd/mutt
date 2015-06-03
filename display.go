@@ -10,7 +10,7 @@ import (
 	"github.com/mgutz/ansi"
 )
 
-// cache escape codes and build strings manually
+// cache escape codes and build strings
 var lime = ansi.ColorCode("green+buh")
 var yellow = ansi.ColorCode("yellow+h")
 var reset = ansi.ColorCode("reset")
